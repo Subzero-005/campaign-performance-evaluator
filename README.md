@@ -1,5 +1,7 @@
 # Digital Marketing Campaign Performance Evaluation System
 
+**▶ [Open the live dashboard](https://subzero-005.github.io/campaigns/)**: scorecard, channels, trends, anomalies, budget plan and spend forecasts for the sample dataset.
+
 A Python system that takes daily ad-campaign data from any channel (Google Search, Meta, Instagram, LinkedIn, YouTube, Email), works out standard marketing KPIs, gives each campaign a score and grade, finds unusual days, suggests how to split the budget, and predicts conversions at different spend levels.
 
 It comes with a CLI that writes CSV and HTML reports, and an interactive Streamlit dashboard.
@@ -13,6 +15,7 @@ It comes with a CLI that writes CSV and HTML reports, and an interactive Streaml
 | `anomalies.py` | Uses a **robust z-score (median/MAD)** for each campaign to flag unusual days, with a likely cause such as a tracking outage, bot traffic or an auction change. |
 | `forecasting.py` | A **Random Forest** model predicts conversions per unit of spend from channel, objective, region, day of week, campaign age and past efficiency (lagged, so there is no leakage). It is checked on a 14-day time-based holdout and supports **what-if spend analysis**. |
 | `report.py` | Runs the whole pipeline and exports the CSVs and an HTML report. |
+| `export.py` | Writes all results, including per-campaign forecasts, to one JSON file that a static web dashboard can load. This is what powers the live dashboard. |
 | `data_generator.py` | Generates realistic synthetic data per channel, including creative fatigue, weekend effects and injected anomalies. |
 | `app.py` | Streamlit dashboard with KPI tiles, scorecard, channel comparison, weekly trends, anomalies, budget plan and forecasts. You can upload your own CSV. |
 
@@ -53,6 +56,9 @@ cpe forecast data/campaigns.csv --campaign CMP-001 --spend 100 250 500 1000
 # 4. Interactive dashboard
 streamlit run app.py
 
+# 5. Export results as JSON for a static web dashboard
+cpe export data/campaigns.csv --out web/data.json
+
 # Tests
 pytest
 ```
@@ -76,6 +82,8 @@ date,campaign_id,campaign_name,channel,objective,region,impressions,clicks,conve
 - `budget_recommendation.csv`: current vs suggested budget
 - `report.html`: a single shareable report
 
+`cpe export` writes `web/data.json`, which holds everything the dashboard shows.
+
 ## Project structure
 
 ```
@@ -88,7 +96,8 @@ campaign-performance-evaluator/
 │   ├── scoring.py
 │   ├── anomalies.py
 │   ├── forecasting.py
-│   └── report.py
+│   ├── report.py
+│   └── export.py           # JSON for the static web dashboard
 ├── tests/test_cpe.py
 ├── data/                   # input CSVs
 └── reports/                # generated outputs

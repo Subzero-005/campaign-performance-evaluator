@@ -96,3 +96,20 @@ def test_end_to_end_reports(tmp_path, daily):
     paths = write_reports(ev, tmp_path)
     assert all(p.exists() for p in paths)
     assert "Campaign scorecard" in (tmp_path / "report.html").read_text()
+
+
+def test_export_json_is_complete_and_valid(daily, tmp_path):
+    import json
+
+    from cpe.export import export_json
+
+    ev = evaluate(daily, target_roas=2.0)
+    path = export_json(ev, tmp_path / "data.json", target_roas=2.0)
+    text = path.read_text()
+    assert "NaN" not in text  # browsers reject NaN in JSON
+    data = json.loads(text)
+    assert {"overview", "campaigns", "channels", "weekly", "anomalies", "budget", "forecast"} <= data.keys()
+    assert len(data["campaigns"]) == daily["campaign_id"].nunique()
+    assert data["period"]["start"] <= data["period"]["end"]
+    assert set(data["forecast"]["what_if"]) == {c["campaign_id"] for c in data["campaigns"]}
+    assert all(len(rows) == 6 for rows in data["forecast"]["what_if"].values())
