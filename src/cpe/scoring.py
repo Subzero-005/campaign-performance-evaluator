@@ -68,12 +68,19 @@ def _recommend(row: pd.Series, target_roas: float) -> str:
 
 
 def budget_reallocation(scored: pd.DataFrame, total_budget: float | None = None,
-                        min_share: float = 0.02) -> pd.DataFrame:
+                        min_share: float = 0.02, returns_exponent: float = 1.0) -> pd.DataFrame:
     """Suggest a budget split proportional to performance score x ROAS.
 
     Paused campaigns get nothing; every other campaign keeps at least
     `min_share` of the budget so it can still gather data.
+
+    `returns_exponent` controls how revenue responds to the new spend:
+    revenue = current_revenue * (new_spend / current_spend) ** returns_exponent.
+    1.0 assumes ROAS holds at any spend (optimistic); values below 1 model
+    diminishing returns, e.g. 0.7 means doubling spend raises revenue by ~62%.
     """
+    if not 0 < returns_exponent <= 1:
+        raise ValueError("returns_exponent must be in (0, 1]")
     df = scored[["campaign_id", "campaign_name", "channel", "spend",
                  "roas", "performance_score", "recommendation"]].copy()
     total_budget = total_budget if total_budget is not None else df["spend"].sum()
@@ -90,6 +97,7 @@ def budget_reallocation(scored: pd.DataFrame, total_budget: float | None = None,
 
     df["change"] = df["suggested_budget"] - df["spend"]
     df["change_pct"] = (df["change"] / df["spend"].where(df["spend"] > 0)).fillna(0)
-    # Projected revenue assumes ROAS holds at the new spend level (optimistic).
-    df["projected_revenue"] = df["suggested_budget"] * df["roas"]
+    current_revenue = df["spend"] * df["roas"]
+    ratio = (df["suggested_budget"] / df["spend"].where(df["spend"] > 0)).fillna(0)
+    df["projected_revenue"] = current_revenue * ratio ** returns_exponent
     return df.sort_values("suggested_budget", ascending=False).reset_index(drop=True)

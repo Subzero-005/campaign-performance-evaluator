@@ -24,6 +24,18 @@ def _records(df: pd.DataFrame) -> list[dict]:
     return json.loads(df.to_json(orient="records", date_format="iso", double_precision=6))
 
 
+def _daily_by_campaign(daily: pd.DataFrame) -> dict:
+    """Compact per-campaign daily series for drill-down charts (columns, not rows)."""
+    cols = ["impressions", "clicks", "conversions", "spend", "revenue"]
+    out = {}
+    for camp, g in daily.sort_values("date").groupby("campaign_id"):
+        series = {"date": g["date"].dt.strftime("%Y-%m-%d").tolist()}
+        for c in cols:
+            series[c] = [round(float(v), 2) for v in g[c]]
+        out[str(camp)] = series
+    return out
+
+
 def build_payload(ev: Evaluation, target_roas: float, with_forecast: bool = True) -> dict:
     daily = ev.daily
     weekly = aggregate(daily.assign(week=daily["date"].dt.to_period("W").dt.start_time),
@@ -49,6 +61,7 @@ def build_payload(ev: Evaluation, target_roas: float, with_forecast: bool = True
         "weekly": _records(weekly),
         "anomalies": _records(anomalies),
         "budget": _records(ev.budget),
+        "daily": _daily_by_campaign(daily),
     }
 
     if with_forecast:

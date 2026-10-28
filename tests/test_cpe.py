@@ -113,3 +113,20 @@ def test_export_json_is_complete_and_valid(daily, tmp_path):
     assert data["period"]["start"] <= data["period"]["end"]
     assert set(data["forecast"]["what_if"]) == {c["campaign_id"] for c in data["campaigns"]}
     assert all(len(rows) == 6 for rows in data["forecast"]["what_if"].values())
+    first = data["daily"][data["campaigns"][0]["campaign_id"]]
+    assert len(first["date"]) == len(first["spend"]) == daily["date"].nunique()
+
+
+def test_diminishing_returns_lowers_projection_for_increases(daily):
+    scored = evaluate(daily).campaigns
+    linear = budget_reallocation(scored).set_index("campaign_id")
+    damped = budget_reallocation(scored, returns_exponent=0.7).set_index("campaign_id")
+    up = linear["change"] > 0
+    assert (damped.loc[up, "projected_revenue"] < linear.loc[up, "projected_revenue"]).all()
+    # cutting spend also loses less revenue than a straight line would suggest
+    down = linear["change"] < 0
+    assert (damped.loc[down, "projected_revenue"] >= linear.loc[down, "projected_revenue"]).all()
+    # the default keeps the original "ROAS holds" projection exactly
+    assert linear["projected_revenue"].values == pytest.approx((linear["suggested_budget"] * linear["roas"]).values)
+    with pytest.raises(ValueError):
+        budget_reallocation(scored, returns_exponent=1.5)
